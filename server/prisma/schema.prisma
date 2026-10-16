@@ -1,0 +1,128 @@
+// Prisma schema for House Renting Management
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id                    Int            @id @default(autoincrement())
+  email                 String         @unique
+  password              String
+  fullName              String
+  phone                 String?
+  role                  String         @default("TENANT") // LANDLORD | TENANT
+  avatarUrl             String?
+  identityCard          String?        // CCCD / CMND
+  createdAt             DateTime       @default(now())
+  
+  contracts             Contract[]
+  feedbacks             Feedback[]
+  sentNotifications     Notification[] @relation("SentNotifications")
+  receivedNotifications Notification[] @relation("ReceivedNotifications")
+}
+
+model Room {
+  id              Int              @id @default(autoincrement())
+  roomCode        String           @unique // P101, P102...
+  floor           Int
+  area            Float            // m2
+  basePrice       Float            // VND / thang
+  status          String           @default("VACANT") // VACANT | RENTED | MAINTENANCE
+  maxOccupants    Int              @default(2)
+  description     String?
+  amenities       String?          // Dieu hoa, Nong lanh, Tu lanh, Ban cong...
+  createdAt       DateTime         @default(now())
+
+  contracts       Contract[]
+  utilityReadings UtilityReading[]
+  invoices        Invoice[]
+  feedbacks       Feedback[]
+}
+
+model Contract {
+  id            Int       @id @default(autoincrement())
+  roomId        Int
+  tenantId      Int
+  startDate     DateTime
+  endDate       DateTime
+  depositAmount Float     // Tien coc
+  monthlyRent   Float     // Gia thue thoa thuan
+  status        String    @default("ACTIVE") // ACTIVE | EXPIRED | TERMINATED
+  createdAt     DateTime  @default(now())
+
+  room          Room      @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  tenant        User      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  invoices      Invoice[]
+}
+
+model UtilityReading {
+  id             Int      @id @default(autoincrement())
+  roomId         Int
+  month          Int      // 1 - 12
+  year           Int      // e.g. 2026
+  electricityOld Float
+  electricityNew Float
+  waterOld       Float
+  waterNew       Float
+  recordedAt     DateTime @default(now())
+
+  room           Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+}
+
+model Invoice {
+  id                Int       @id @default(autoincrement())
+  contractId        Int
+  roomId            Int
+  month             Int
+  year              Int
+  roomCharge        Float
+  electricityCharge Float
+  waterCharge       Float
+  internetCharge    Float     @default(0)
+  trashCharge       Float     @default(0)
+  otherCharge       Float     @default(0)
+  totalAmount       Float
+  status            String    @default("UNPAID") // UNPAID | PENDING_APPROVAL | PAID | OVERDUE
+  dueDate           DateTime
+  paidAt            DateTime?
+  paymentMethod     String?   // CASH | BANK_TRANSFER | QR
+  paymentProofUrl   String?
+  createdAt         DateTime  @default(now())
+
+  contract          Contract  @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  room              Room      @relation(fields: [roomId], references: [id], onDelete: Cascade)
+}
+
+model Feedback {
+  id            Int       @id @default(autoincrement())
+  userId        Int
+  roomId        Int
+  title         String
+  content       String
+  category      String    @default("REPAIR") // REPAIR | NOISE | HYGIENE | BILLING | OTHER
+  status        String    @default("PENDING") // PENDING | IN_PROGRESS | RESOLVED
+  landlordReply String?
+  resolvedAt    DateTime?
+  createdAt     DateTime  @default(now())
+
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  room          Room      @relation(fields: [roomId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id         Int      @id @default(autoincrement())
+  senderId   Int
+  receiverId Int?     // null = gui toan bo khu tro
+  title      String
+  content    String
+  type       String   @default("ANNOUNCEMENT") // BILL | ANNOUNCEMENT | ALERT
+  isRead     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  sender     User     @relation("SentNotifications", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver   User?    @relation("ReceivedNotifications", fields: [receiverId], references: [id], onDelete: Cascade)
+}
